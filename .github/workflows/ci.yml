@@ -1,0 +1,83 @@
+# La CI du serveur : à chaque push, le code et les configurations sont testés.
+# Le déploiement (défi P1-10) ne part que de main, et seulement si les tests passent.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualite:
+    name: Qualité du code
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntaxe bash
+        run: |
+          for f in deployer.sh lib/*.sh modules/*.sh outils/* tests/*.sh; do
+            bash -n "$f"
+            echo "ok  $f"
+          done
+
+      - name: ShellCheck
+        run: |
+          command -v shellcheck > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck; }
+          shellcheck --version | sed -n 2p
+          # Les avertissements et les erreurs font échouer la CI ; tout voir : shellcheck -x modules/*.sh
+          shellcheck -x --severity=warning deployer.sh lib/*.sh modules/*.sh outils/* tests/*.sh
+
+      - name: Les scripts sont exécutables
+        run: |
+          # Un fichier ajouté depuis Windows perd son droit d'exécution : git add --chmod=+x <fichier>
+          git ls-files -s deployer.sh outils/ tests/ | awk '$1 != "100755" {print "pas exécutable dans Git : " $4; bad = 1} END {exit bad}'
+
+      - name: Pas de secret dans le dépôt
+        run: bash tests/secrets.sh
+
+  configurations:
+    name: Configurations
+    runs-on: ubuntu-24.04
+    # Un Ubuntu 24.04 neuf, comme le serveur : chaque fichier est testé par le programme qui le lira.
+    container: ubuntu:24.04
+    steps:
+      - name: Les paquets du serveur
+        run: |
+          # Dans un conteneur, rien ne démarre pendant l'installation : on ne fait que tester.
+          printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            ca-certificates git nginx fail2ban openssh-server openssl sudo > /dev/null
+
+      - uses: actions/checkout@v4
+
+      - name: Tester les configurations
+        run: bash tests/configurations.sh
+
+  deploiement:
+    name: Déploiement
+    needs: [qualite, configurations]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    concurrency: deploiement
+    steps:
+      - name: Déployer sur le serveur
+        env:
+          CLE: ${{ secrets.CLE_DEPLOIEMENT }}
+          HOTE_CONNU: ${{ secrets.HOTE_CONNU }}
+          SERVEUR: ${{ vars.SERVEUR }}
+        run: |
+          if [ -z "$CLE" ] || [ -z "$HOTE_CONNU" ] || [ -z "$SERVEUR" ]; then
+            echo "::notice::Déploiement automatique pas encore réglé (défi P1-10) : il manque le secret CLE_DEPLOIEMENT, le secret HOTE_CONNU ou la variable SERVEUR."
+            exit 0
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/deploiement
+          chmod 600 ~/.ssh/deploiement
+          printf '%s\n' "$HOTE_CONNU" > ~/.ssh/known_hosts
+          # Le serveur lance serveur-durci-deployer avec ce commit, et rien d'autre (la clé est bridée).
+          ssh -i ~/.ssh/deploiement -o IdentitiesOnly=yes -o BatchMode=yes "deploy@$SERVEUR" "$GITHUB_SHA"

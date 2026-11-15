@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# serveur-durci-deployer : prend la dernière version du dépôt sur GitHub, puis déploie.
+#
+#   sudo serveur-durci-deployer            la dernière version de main
+#   sudo serveur-durci-deployer <commit>   ce commit précis (la CI donne celui qu'elle vient de tester)
+#
+# Posé dans /usr/local/sbin par modules/00-base.sh. Le dépôt du serveur est /opt/serveur-durci :
+# on n'y modifie rien à la main. Le serveur ne change que par GitHub.
+set -euo pipefail
+export LC_ALL=C.UTF-8 GIT_TERMINAL_PROMPT=0
+DEPOT=/opt/serveur-durci
+demande="${1:-}"
+
+stop() {
+	printf 'serveur-durci-deployer : %s\n' "$*" >&2
+	exit 1
+}
+[ "$(id -u)" -eq 0 ] || stop "à lancer avec sudo : sudo serveur-durci-deployer"
+[ -d "$DEPOT/.git" ] || stop "pas de dépôt dans $DEPOT (sudo git clone https://github.com/<ton compte>/serveur-durci.git $DEPOT)"
+cd "$DEPOT"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+	stop "le dépôt du serveur a été modifié à la main (sudo git -C $DEPOT status). Le serveur ne change que par GitHub : fais la modification dans ton dépôt, pousse-la, puis annule celle-ci (sudo git -C $DEPOT checkout -- .)."
+fi
+git fetch --quiet origin main || stop "GitHub ne répond pas, ou le dépôt n'est pas public (git -C $DEPOT remote -v)"
+if [ -n "$demande" ]; then
+	[[ "$demande" =~ ^[0-9a-f]{40}$ ]] || stop "« $demande » n'est pas un commit (40 caractères hexadécimaux)"
+	git merge-base --is-ancestor "$demande" origin/main 2> /dev/null || stop "le commit $demande n'est pas sur main"
+	cible="$demande"
+else
+	cible=$(git rev-parse origin/main)
+fi
+git checkout --quiet -B main "$cible"
+git branch --quiet --set-upstream-to=origin/main main 2> /dev/null || true
+exec bash ./deployer.sh

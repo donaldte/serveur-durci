@@ -1,0 +1,6 @@
+# Les réglages du serveur restent sur le serveur.
+config.env
+# Les fichiers de travail.
+*.log
+*.bak
+*.swp

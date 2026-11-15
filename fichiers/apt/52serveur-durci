@@ -1,0 +1,9 @@
+// À FAIRE (P1-05) : efface cette ligne quand le fichier est écrit.
+// Les mises à jour automatiques, posées dans /etc/apt/apt.conf.d/ (man apt.conf ; un exemple
+// commenté : /etc/apt/apt.conf.d/50unattended-upgrades). Pour apt, le dernier fichier lu gagne.
+// Une ligne par réglage, qui finit par un point-virgule. Il doit dire :
+//   - chaque jour, mettre à jour la liste des paquets : APT::Periodic::Update-Package-Lists ;
+//   - chaque jour, installer les mises à jour de sécurité : APT::Periodic::Unattended-Upgrade ;
+//   - ta décision pour le redémarrage automatique : Unattended-Upgrade::Automatic-Reboot,
+//     expliquée dans docs/decisions.md.
+// Teste-le sans toucher au serveur : sudo ./tests/configurations.sh
