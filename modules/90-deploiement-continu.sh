@@ -1,18 +1,45 @@
 # shellcheck shell=bash
 # modules/90-deploiement-continu.sh : chaque push sur main se déploie tout seul. Défi P1-10.
 #
-# À FAIRE (P1-10, le défi) : efface cette ligne quand le module est écrit.
-# GitHub Actions entrera sur ton serveur sous le compte deploy (celui du TP 4), avec sa propre
-# clé, qui ne pourra lancer qu'une commande : serveur-durci-deployer <commit>. Ce module doit :
-#   1. ne rien faire s'il n'y a pas de clé dans fichiers/deploiement/github-actions.pub
-#      (return 0 sort du module) ;
-#   2. créer le compte deploy s'il n'existe pas, sans mot de passe (useradd -m -s /bin/bash) ;
-#   3. poser fichiers/deploiement/sudoers dans /etc/sudoers.d/serveur-durci (mode 440), testé par
-#      « visudo -c » : un sudoers cassé, c'est plus de sudo du tout ;
-#   4. mettre la clé dans /home/deploy/.ssh/authorized_keys, bridée, sur une seule ligne :
-#        restrict,command="sudo -n /usr/local/sbin/serveur-durci-deployer \"$SSH_ORIGINAL_COMMAND\"" ssh-ed25519 AAAA…
-#      sans effacer les autres clés de deploy (celle du TP 4) ; .ssh en 700, le fichier en 600,
-#      le tout à deploy (poser SOURCE DESTINATION 600 deploy).
-# Le reste se règle sur GitHub : le ticket P1-10 (less /opt/mboa/TICKETS-PROJET1).
+# GitHub Actions entre sur le serveur avec sa propre clé, sous le compte deploy (celui du TP 4).
+# Cette clé ne peut lancer qu'une commande : serveur-durci-deployer, avec le commit que la CI
+# vient de tester. Sa partie publique est dans le dépôt, sa partie privée est un secret GitHub.
 etape "Déploiement continu"
-info "pas encore écrit (défi P1-10)"
+CLE_CI=fichiers/deploiement/github-actions.pub
+if [ ! -s "$CLE_CI" ]; then
+	info "pas de clé dans $CLE_CI : le déploiement continu n'est pas activé (défi P1-10)"
+	return 0
+fi
+grep -Eqx 'ssh-ed25519 [A-Za-z0-9+/=]+( [^ ]+)?' "$CLE_CI" ||
+	erreur "$CLE_CI doit tenir sur une ligne : ssh-ed25519 AAAA… commentaire (la partie PUBLIQUE)"
+
+# 1. Le compte deploy : ni mot de passe, ni sudo général.
+if ! getent passwd deploy > /dev/null; then
+	faire "compte deploy créé" useradd -m -s /bin/bash deploy
+fi
+
+# 2. Ce que deploy peut lancer en root : le déploiement d'un commit, rien d'autre.
+poser_teste fichiers/deploiement/sudoers /etc/sudoers.d/serveur-durci 440 visudo -c
+
+# 3. La clé de GitHub Actions dans authorized_keys, bridée. Les autres clés de deploy
+#    (celle de la CI du TP 4) restent.
+cle=$(head -n1 "$CLE_CI")
+blob=$(cut -d' ' -f2 <<< "$cle")
+# Les guillemets simples sont voulus : c'est le shell de deploy qui remplacera $SSH_ORIGINAL_COMMAND.
+# shellcheck disable=SC2016
+bride='restrict,command="sudo -n /usr/local/sbin/serveur-durci-deployer \"$SSH_ORIGINAL_COMMAND\""'
+autorisees=/home/deploy/.ssh/authorized_keys
+{
+	[ ! -f "$autorisees" ] || grep -vF "$blob" "$autorisees" || true
+	printf '%s %s\n' "$bride" "$cle"
+} > "$TMP/authorized_keys"
+if [ ! -d /home/deploy/.ssh ]; then
+	faire "dossier /home/deploy/.ssh" install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+fi
+poser "$TMP/authorized_keys" "$autorisees" 600 deploy
+
+# 4. sshd doit laisser entrer deploy.
+if sshd -T 2> /dev/null | grep -Eqi '^(allowusers|allowgroups) '; then
+	sshd -T -C user=deploy,host=github.com,addr=192.0.2.10 2> /dev/null | grep -Eqi '^allowusers .*\bdeploy\b' ||
+		attention "sshd n'accepte que certains comptes (AllowUsers, AllowGroups) : vérifie que deploy en fait partie (sudo sshd -T | grep -i allow)"
+fi

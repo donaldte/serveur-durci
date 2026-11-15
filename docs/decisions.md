@@ -42,17 +42,22 @@ un VPN.
 **Pourquoi le filet** : la seule erreur de pare-feu qu'on ne répare pas soi-même, c'est celle qui
 nous enferme dehors.
 
-## fail2ban : mes réglages
+## fail2ban : 5 échecs en 10 minutes, 1 heure de bannissement
 
-À COMPLÉTER : tes chiffres (maxretry, findtime, bantime), ce que tu as écarté, et pourquoi.
-Pense à ce qui arrive sur Internet à un port 22 ouvert, et à ce qui t'arrive si tu te trompes
-de clé cinq fois de suite.
+**Choix** : `maxretry = 5`, `findtime = 10m`, `bantime = 1h`, et deux fois plus à chaque
+récidive, jusqu'à une semaine.
 
-## Le redémarrage après une mise à jour
+**Pourquoi** : sur Internet, un port 22 reçoit des milliers d'essais par jour. On n'entre que par
+clé, donc ils échouent tous ; fail2ban les fait taire, et le journal reste lisible.
 
-À COMPLÉTER : ton choix pour Unattended-Upgrade::Automatic-Reboot (fichiers/apt/52serveur-durci),
-ce que tu as écarté, et pourquoi. Une mise à jour du noyau ne sert qu'après un redémarrage ;
-un redémarrage, c'est ton site coupé une minute.
+## Pas de redémarrage automatique
+
+**Choix** : `Unattended-Upgrade::Automatic-Reboot "false"`. Les mises à jour de sécurité
+s'installent seules ; le redémarrage (souvent pour un noyau), on le choisit.
+
+**Écarté** : `"true"` avec une heure fixe (`Automatic-Reboot-Time "04:00"`) : très bien pour un
+serveur derrière un répartiteur de charge, mais ici le serveur est seul, et un redémarrage, c'est
+le site coupé.
 
 ## SSH : ce qu'on change, et ce qu'on ne change pas
 

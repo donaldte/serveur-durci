@@ -1,9 +1,17 @@
-# À FAIRE (P1-04) : efface cette ligne quand le fichier est écrit.
-# Les réglages de fail2ban pour ton serveur, posés dans /etc/fail2ban/jail.d/ (man jail.conf).
-# Une section [DEFAULT] qui dit :
-#   - jamais bannis : 127.0.0.1/8, ::1, et les adresses de config.env, que le module met à la
-#     place de @JAMAIS_BANNIES@ (ignoreip = …) ;
-#   - 5 échecs (maxretry) en 10 minutes (findtime = 10m) : banni 1 heure (bantime = 1h) ;
-#   - en plus, si tu veux : un récidiviste banni de plus en plus longtemps (bantime.increment).
-# Puis une section [sshd] qui active la prison de SSH (enabled = true).
-# Teste-le sans toucher au serveur : sudo ./tests/configurations.sh
+# Posé par serveur-durci (modules/30-fail2ban.sh) dans /etc/fail2ban/jail.d/.
+# Ne le modifie pas sur le serveur : modifie le dépôt, pousse, puis sudo serveur-durci-deployer.
+
+[DEFAULT]
+# Jamais bannis : la machine elle-même, et les adresses de JAMAIS_BANNIES (config.env).
+ignoreip = 127.0.0.1/8 ::1 @JAMAIS_BANNIES@
+# 5 échecs en 10 minutes : banni pour 1 heure.
+maxretry = 5
+findtime = 10m
+bantime = 1h
+# Un récidiviste est banni deux fois plus longtemps à chaque fois, jusqu'à une semaine.
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1w
+
+[sshd]
+enabled = true

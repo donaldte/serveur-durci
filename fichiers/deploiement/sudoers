@@ -1,5 +1,4 @@
-# À FAIRE (P1-10) : efface cette ligne quand le fichier est écrit.
-# Ce que deploy peut lancer en root, posé dans /etc/sudoers.d/serveur-durci (man sudoers).
-# Une seule règle : deploy lance /usr/local/sbin/serveur-durci-deployer, en root, sans mot de
-# passe, avec un commit en argument et rien d'autre. Un argument peut être une expression
-# régulière : ^[0-9a-f]{40}$ (40 caractères hexadécimaux). Rien d'autre : ni ALL, ni bash.
+# Posé par serveur-durci (modules/90-deploiement-continu.sh), testé par visudo -c.
+# deploy peut lancer le déploiement en root, sans mot de passe, avec un commit en argument
+# (40 caractères hexadécimaux), et rien d'autre.
+deploy ALL=(root) NOPASSWD: /usr/local/sbin/serveur-durci-deployer ^[0-9a-f]{40}$

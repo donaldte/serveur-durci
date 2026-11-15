@@ -1,19 +1,52 @@
 # shellcheck shell=bash
 # modules/20-pare-feu.sh : le pare-feu (ufw). Ce qui n'est pas ouvert ici est fermé. Ticket P1-03.
-#
-# À FAIRE (P1-03) : efface cette ligne quand le module est écrit.
-# Ce module doit, dans l'ordre :
-#   1. installer ufw (paquets ufw) ;
-#   2. refuser par défaut ce qui entre (ufw default deny incoming) et permettre ce qui sort
-#      (ufw default allow outgoing) : /etc/default/ufw dit ce qui est réglé ;
-#   3. ouvrir 22/tcp, 80/tcp et 443/tcp, et retirer toute autre règle : « ufw show added »
-#      donne les règles actuelles, une par ligne (ufw allow 22/tcp). Ouvre d'abord, retire
-#      ensuite : le 22 ne doit jamais se fermer, même un instant ;
-#   4. si ufw n'est pas actif (ufw status), l'activer avec activer_pare_feu (le filet de
-#      5 minutes), mais seulement si tu es là pour confirmer, donc dans un terminal : [ -t 0 ].
-#      Sinon (la CI qui déploie), un message : attention "…".
-# Chaque changement passe par « faire » : il est compté, et le deuxième déploiement dit
-# « Rien à changer ». Exemple : faire "ufw : 80/tcp ouvert" ufw allow 80/tcp
-# Les outils : lib/commun.sh.
 etape "Pare-feu (ufw)"
-info "pas encore écrit (ticket P1-03)"
+paquets ufw
+if ! command -v ufw > /dev/null; then
+	info "(essai) ufw n'est pas encore installé : la suite se verra au vrai déploiement"
+	return 0
+fi
+
+# Les seuls ports ouverts sur Internet. Le 22 d'abord : c'est par lui que tu entres.
+PORTS=(22/tcp 80/tcp 443/tcp)
+
+# 1. Le garde-fou : jamais de pare-feu sans SSH.
+case " ${PORTS[*]} " in
+*" 22/tcp "*) ;;
+*) erreur "22/tcp n'est pas dans PORTS : tu t'enfermerais dehors" ;;
+esac
+
+# 2. Par défaut, ce qui entre est refusé et ce qui sort est permis.
+if ! grep -q '^DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw; then
+	faire "ufw : ce qui entre est refusé par défaut" ufw default deny incoming
+fi
+if ! grep -q '^DEFAULT_OUTPUT_POLICY="ACCEPT"' /etc/default/ufw; then
+	faire "ufw : ce qui sort est permis par défaut" ufw default allow outgoing
+fi
+
+# 3. Les règles de PORTS, et aucune autre : le dépôt décrit le serveur.
+#    On ouvre d'abord, on retire ensuite : le 22 ne se ferme jamais, même un instant.
+mapfile -t regles < <(ufw show added | sed -n 's/^ufw //p')
+voulues=()
+for port in "${PORTS[@]}"; do
+	voulues+=("allow $port")
+	if ! printf '%s\n' "${regles[@]}" | grep -qxF "allow $port"; then
+		faire "ufw : $port ouvert" ufw allow "$port"
+	fi
+done
+for regle in "${regles[@]}"; do
+	printf '%s\n' "${voulues[@]}" | grep -qxF "$regle" && continue
+	read -ra mots <<< "$regle"
+	faire "ufw : règle retirée (ufw $regle)" ufw delete "${mots[@]}"
+done
+
+# 4. Actif. La première fois, avec le filet, et seulement si tu es là pour confirmer.
+if ! ufw status | grep -q '^Status: active'; then
+	if [ ! -t 0 ]; then
+		attention "le pare-feu n'est pas actif : la première fois, active-le toi-même, dans ta session SSH (sudo $DEPOT/deployer.sh)"
+	else
+		activer_pare_feu
+	fi
+elif filet_arme; then
+	demander_confirmation
+fi
