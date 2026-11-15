@@ -1,10 +1,10 @@
 <!-- À COMPLÉTER : remplace partout TON-PRENOM par ton prénom et TON-COMPTE par ton compte GitHub, puis efface cette ligne. -->
-# serveur-durci · TON-PRENOM
+# serveur-durci · Moustapha
 
-[![CI](https://github.com/TON-COMPTE/serveur-durci/actions/workflows/ci.yml/badge.svg)](https://github.com/TON-COMPTE/serveur-durci/actions/workflows/ci.yml)
+[![CI](https://github.com/kamoustaph/serveur-durci/actions/workflows/ci.yml/badge.svg)](https://github.com/kamoustaph/serveur-durci/actions/workflows/ci.yml)
 
 Mon serveur de production, décrit en code : un Ubuntu 24.04 durci et automatisé, qui sert
-**https://TON-PRENOM.formationdevops.xyz**. Une commande le remet dans l'état décrit ici, autant
+**https://moustapha.formationdevops.xyz**. Une commande le remet dans l'état décrit ici, autant
 de fois qu'on veut : le deuxième passage dit « Rien à changer ».
 
 Projet 1 de la formation DevOps Runbookly, fait à partir du modèle du formateur.
@@ -40,7 +40,7 @@ Ce qui est propre au serveur et ne doit pas aller sur GitHub (mon e-mail, mon ad
 La première fois, sur le serveur :
 
 ```bash
-sudo git clone https://github.com/TON-COMPTE/serveur-durci.git /opt/serveur-durci
+sudo git clone https://github.com/kamoustaph/serveur-durci.git /opt/serveur-durci
 cd /opt/serveur-durci
 sudo cp config.env.exemple config.env
 sudo nano config.env
