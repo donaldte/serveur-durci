@@ -42,7 +42,7 @@ else
 	mkdir -p /run/sshd
 	if ! sshd -t -f "$tmp/sshd_config" 2> "$tmp/sortie"; then
 		ko "$f : sshd le refuse" "$tmp/sortie"
-	elif ! sshd -T -f "$tmp/sshd_config" 2> /dev/null | grep -qx 'passwordauthentication no'; then
+	elif ! sshd -T -f "$tmp/sshd_config" 2> /dev/null | grep -x 'passwordauthentication no' > /dev/null; then
 		ko "$f : il laisse encore entrer par mot de passe (PasswordAuthentication)"
 	else
 		ok "$f"
