@@ -44,15 +44,20 @@ nous enferme dehors.
 
 ## fail2ban : mes réglages
 
-À COMPLÉTER : tes chiffres (maxretry, findtime, bantime), ce que tu as écarté, et pourquoi.
-Pense à ce qui arrive sur Internet à un port 22 ouvert, et à ce qui t'arrive si tu te trompes
-de clé cinq fois de suite.
+Je retiens maxretry = 5, findtime = 10m et bantime = 1h,
+avec augmentation du bannissement lors des récidives.
+Cela limite les essais répétés sur SSH tout en permettant de corriger
+une erreur ponctuelle. Mon adresse autorisée est renseignée dans
+config.env. Une limite plus stricte augmenterait le risque de me bannir
+en cas d'erreur de clé.
 
 ## Le redémarrage après une mise à jour
 
-À COMPLÉTER : ton choix pour Unattended-Upgrade::Automatic-Reboot (fichiers/apt/52serveur-durci),
-ce que tu as écarté, et pourquoi. Une mise à jour du noyau ne sert qu'après un redémarrage ;
-un redémarrage, c'est ton site coupé une minute.
+Je retiens Unattended-Upgrade::Automatic-Reboot "false".
+Les mises à jour de sécurité seront installées chaque jour.
+Je planifierai les redémarrages nécessaires, notamment après une mise
+à jour du noyau, pour pouvoir vérifier le retour du site et des services.
+Un redémarrage automatique pourrait interrompre une utilisation en cours.
 
 ## SSH : ce qu'on change, et ce qu'on ne change pas
 
