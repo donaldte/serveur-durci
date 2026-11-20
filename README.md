@@ -1,4 +1,3 @@
-<!-- À COMPLÉTER : remplace partout TON-PRENOM par ton prénom et TON-COMPTE par ton compte GitHub, puis efface cette ligne. -->
 # serveur-durci · Moustapha
 
 [![CI](https://github.com/kamoustaph/serveur-durci/actions/workflows/ci.yml/badge.svg)](https://github.com/kamoustaph/serveur-durci/actions/workflows/ci.yml)
