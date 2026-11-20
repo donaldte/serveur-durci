@@ -1,18 +1,61 @@
 # shellcheck shell=bash
-# modules/90-deploiement-continu.sh : chaque push sur main se déploie tout seul. Défi P1-10.
-#
-# À FAIRE (P1-10, le défi) : efface cette ligne quand le module est écrit.
-# GitHub Actions entrera sur ton serveur sous le compte deploy (celui du TP 4), avec sa propre
-# clé, qui ne pourra lancer qu'une commande : serveur-durci-deployer <commit>. Ce module doit :
-#   1. ne rien faire s'il n'y a pas de clé dans fichiers/deploiement/github-actions.pub
-#      (return 0 sort du module) ;
-#   2. créer le compte deploy s'il n'existe pas, sans mot de passe (useradd -m -s /bin/bash) ;
-#   3. poser fichiers/deploiement/sudoers dans /etc/sudoers.d/serveur-durci (mode 440), testé par
-#      « visudo -c » : un sudoers cassé, c'est plus de sudo du tout ;
-#   4. mettre la clé dans /home/deploy/.ssh/authorized_keys, bridée, sur une seule ligne :
-#        restrict,command="sudo -n /usr/local/sbin/serveur-durci-deployer \"$SSH_ORIGINAL_COMMAND\"" ssh-ed25519 AAAA…
-#      sans effacer les autres clés de deploy (celle du TP 4) ; .ssh en 700, le fichier en 600,
-#      le tout à deploy (poser SOURCE DESTINATION 600 deploy).
-# Le reste se règle sur GitHub : le ticket P1-10 (less /opt/mboa/TICKETS-PROJET1).
+# Accès GitHub Actions limité au déploiement d'un commit.
+
 etape "Déploiement continu"
-info "pas encore écrit (défi P1-10)"
+publique=fichiers/deploiement/github-actions.pub
+
+if [ ! -s "$publique" ]; then
+    info "Pas de clé publique GitHub Actions configurée."
+    return 0
+fi
+
+ssh-keygen -lf "$publique" > /dev/null ||
+    erreur "Clé publique GitHub Actions invalide."
+
+read -r type cle commentaire < "$publique"
+[ "$type" = ssh-ed25519 ] ||
+    erreur "Une clé publique ssh-ed25519 est attendue."
+
+if ! id deploy > /dev/null 2>&1; then
+    faire "compte deploy créé" useradd -m -s /bin/bash deploy
+fi
+
+poser_teste fichiers/deploiement/sudoers \
+    /etc/sudoers.d/serveur-durci \
+    440 visudo -c
+
+dossier_ssh=/home/deploy/.ssh
+cles_autorisees=$dossier_ssh/authorized_keys
+
+if [ ! -d "$dossier_ssh" ] ||
+    [ "$(stat -c '%a %U %G' "$dossier_ssh")" != "700 deploy deploy" ]; then
+    faire "permissions du dossier SSH de deploy" \
+        install -d -m 700 -o deploy -g deploy "$dossier_ssh"
+fi
+
+nouveau="$TMP/authorized_keys"
+: > "$nouveau"
+
+# Conserver les autres clés et remplacer une éventuelle ancienne
+# déclaration de cette même clé par sa version bridée.
+if [ -f "$cles_autorisees" ]; then
+    awk -v type="$type" -v cle="$cle" '
+        {
+            correspond = 0
+            for (i = 1; i < NF; i++) {
+                if ($i == type && $(i + 1) == cle) {
+                    correspond = 1
+                }
+            }
+            if (!correspond) {
+                print
+            }
+        }
+    ' "$cles_autorisees" > "$nouveau"
+fi
+
+printf '%s %s %s %s\n' \
+    'restrict,command="sudo -n /usr/local/sbin/serveur-durci-deployer \"$SSH_ORIGINAL_COMMAND\""' \
+    "$type" "$cle" "$commentaire" >> "$nouveau"
+
+poser "$nouveau" "$cles_autorisees" 600 deploy
