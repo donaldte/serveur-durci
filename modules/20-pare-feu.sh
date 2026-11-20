@@ -1,19 +1,64 @@
 # shellcheck shell=bash
-# modules/20-pare-feu.sh : le pare-feu (ufw). Ce qui n'est pas ouvert ici est fermé. Ticket P1-03.
-#
-# À FAIRE (P1-03) : efface cette ligne quand le module est écrit.
-# Ce module doit, dans l'ordre :
-#   1. installer ufw (paquets ufw) ;
-#   2. refuser par défaut ce qui entre (ufw default deny incoming) et permettre ce qui sort
-#      (ufw default allow outgoing) : /etc/default/ufw dit ce qui est réglé ;
-#   3. ouvrir 22/tcp, 80/tcp et 443/tcp, et retirer toute autre règle : « ufw show added »
-#      donne les règles actuelles, une par ligne (ufw allow 22/tcp). Ouvre d'abord, retire
-#      ensuite : le 22 ne doit jamais se fermer, même un instant ;
-#   4. si ufw n'est pas actif (ufw status), l'activer avec activer_pare_feu (le filet de
-#      5 minutes), mais seulement si tu es là pour confirmer, donc dans un terminal : [ -t 0 ].
-#      Sinon (la CI qui déploie), un message : attention "…".
-# Chaque changement passe par « faire » : il est compté, et le deuxième déploiement dit
-# « Rien à changer ». Exemple : faire "ufw : 80/tcp ouvert" ufw allow 80/tcp
-# Les outils : lib/commun.sh.
+# Pare-feu du serveur, chargé par deployer.sh.
+
 etape "Pare-feu (ufw)"
-info "pas encore écrit (ticket P1-03)"
+paquets ufw python3
+
+if ! grep -q '^DEFAULT_INPUT_POLICY="DROP"$' /etc/default/ufw; then
+    faire "ufw : connexions entrantes refusées par défaut" \
+        ufw default deny incoming
+fi
+
+if ! grep -q '^DEFAULT_OUTPUT_POLICY="ACCEPT"$' /etc/default/ufw; then
+    faire "ufw : connexions sortantes autorisées" \
+        ufw default allow outgoing
+fi
+
+regles=""
+if command -v ufw > /dev/null; then
+    regles=$(LC_ALL=C ufw show added)
+fi
+
+for port in 22 80 443; do
+    if ! grep -Fxq "ufw allow $port/tcp" <<< "$regles"; then
+        faire "ufw : $port/tcp ouvert" ufw allow "$port/tcp"
+    fi
+done
+
+# shlex restitue les arguments, y compris les noms de profils avec espaces.
+supprimer_regle_ufw() {
+    python3 - "$1" <<'PY'
+import shlex
+import subprocess
+import sys
+
+arguments = shlex.split(sys.argv[1])
+if not arguments or arguments[0] != "ufw":
+    raise SystemExit("Règle UFW invalide")
+subprocess.run(
+    ["/usr/sbin/ufw", "--force", "delete", *arguments[1:]],
+    check=True,
+)
+PY
+}
+
+while IFS= read -r regle; do
+    case "$regle" in
+        "ufw allow 22/tcp"|"ufw allow 80/tcp"|"ufw allow 443/tcp")
+            ;;
+        ufw\ *)
+            faire "ufw : retrait de $regle" supprimer_regle_ufw "$regle"
+            ;;
+    esac
+done <<< "$regles"
+
+if command -v ufw > /dev/null &&
+    LC_ALL=C ufw status | grep -q '^Status: active'; then
+    if filet_arme; then
+        demander_confirmation
+    fi
+elif [ -t 0 ]; then
+    activer_pare_feu
+else
+    attention "ufw inactif : lance le déploiement depuis un terminal pour confirmer son activation."
+fi
